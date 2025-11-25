@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-# Adiciona as permissões necessárias para o CodeQL
 permissions:
   actions: read
   contents: read
@@ -33,17 +32,30 @@ jobs:
           languages: 'java'
 
       - name: Build and run unit tests
-        run: mvn -B --no-transfer-progress verify --file pom.xml
+        run: |
+          echo "::notice title=Build & Unit Test::Iniciando compilação e testes unitários..."
+          mvn -B --no-transfer-progress verify --file pom.xml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
       - name: Upload build artifact
+        run: echo "::notice title=Artifact Upload::Fazendo upload do artefato JAR..."
         uses: actions/upload-artifact@v4
         with:
           name: app-jar
           path: target/*.jar
           if-no-files-found: error
+
+      - name: Post Job Summary
+        if: always()
+        run: |
+          echo "### 📝 Build, Test & Analyze Summary" >> $GITHUB_STEP_SUMMARY
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Job concluído com sucesso." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Job falhou. Verifique os logs para mais detalhes." >> $GITHUB_STEP_SUMMARY
+          fi
 
   e2e-tests:
     name: End-to-End Selenium Tests
@@ -68,21 +80,32 @@ jobs:
 
       - name: Start application in background
         run: |
+          echo "::notice title=Application Start::Iniciando a aplicação em background..."
           nohup java -jar target/*.jar &
           echo $! > app.pid
 
       - name: Wait for application to be healthy
         run: |
+          echo "::notice title=Health Check::Aguardando a aplicação ficar pronta..."
           timeout 60s bash -c 'until curl -s --fail http://localhost:7070/health > /dev/null; do sleep 2; done'
 
       - name: Run Selenium tests
-        run: mvn -B --no-transfer-progress test-compile failsafe:integration-test failsafe:verify --file pom.xml
+        run: |
+          echo "::notice title=Selenium Tests::Executando testes E2E com Selenium..."
+          mvn -B --no-transfer-progress test-compile failsafe:integration-test failsafe:verify --file pom.xml
 
       - name: Stop application
         if: always()
         run: |
-          if [ -f app.pid ]; then
-            kill $(cat app.pid)
+          echo "::notice title=Application Stop::Finalizando a aplicação."
+          if [ -f app.pid ]; then kill $(cat app.pid); else pkill -f 'java -jar'; fi
+
+      - name: Post E2E Test Summary
+        if: always()
+        run: |
+          echo "### 🧪 End-to-End Selenium Tests Summary" >> $GITHUB_STEP_SUMMARY
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Testes E2E passaram com sucesso!" >> $GITHUB_STEP_SUMMARY
           else
-            pkill -f 'java -jar'
+            echo "❌ Testes E2E falharam. Verifique os logs do passo 'Run Selenium tests'." >> $GITHUB_STEP_SUMMARY
           fi
