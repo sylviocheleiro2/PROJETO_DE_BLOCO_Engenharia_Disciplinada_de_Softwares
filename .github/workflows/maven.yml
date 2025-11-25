@@ -27,8 +27,8 @@ jobs:
           languages: 'java'
 
       - name: Build and run unit tests
-        # Usamos 'verify' para garantir que os testes unitários rodem antes de empacotar
-        run: mvn -B verify --file pom.xml
+        # --no-transfer-progress remove os logs de download das dependências
+        run: mvn -B --no-transfer-progress verify --file pom.xml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
@@ -42,7 +42,7 @@ jobs:
 
   e2e-tests:
     name: End-to-End Selenium Tests
-    needs: build_and_analyze # Garante que este job só rode após o sucesso do build
+    needs: build_and_analyze
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -62,17 +62,24 @@ jobs:
           path: target/
 
       - name: Start application in background
-
         run: |
           nohup java -jar target/*.jar &
-          sleep 15
+          echo $! > app.pid
+
+      - name: Wait for application to be healthy
+        # Loop silencioso que aguarda a aplicação responder no endpoint /health
+        run: |
+          timeout 60s bash -c 'until curl -s --fail http://localhost:7070/health > /dev/null; do sleep 2; done'
 
       - name: Run Selenium tests
-
-        run: mvn -B test-compile failsafe:integration-test failsafe:verify --file pom.xml
+        # --no-transfer-progress também é usado aqui
+        run: mvn -B --no-transfer-progress test-compile failsafe:integration-test failsafe:verify --file pom.xml
 
       - name: Stop application
-
         if: always()
         run: |
-          pkill -f 'java -jar'
+          if [ -f app.pid ]; then
+            kill $(cat app.pid)
+          else
+            pkill -f 'java -jar'
+          fi

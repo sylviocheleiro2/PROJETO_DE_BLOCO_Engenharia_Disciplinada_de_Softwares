@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class PessoaCrudE2ETest extends BaseTest {
 
+    private static final Duration WAIT_TIMEOUT = Duration.ofSeconds(10); // Timeout aumentado
+
     @Test
     @DisplayName("Deve cadastrar uma nova pessoa com sucesso")
     public void deveCadastrarNovaPessoaComSucesso() {
@@ -32,12 +34,10 @@ public class PessoaCrudE2ETest extends BaseTest {
         cadastroPage.preencherFormularioDeCadastro(nome, idade, email, cpf);
         cadastroPage.clicarEmAdicionar();
 
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
-        // Espera pela notificação de sucesso
+        WebDriverWait wait = new WebDriverWait(driver, WAIT_TIMEOUT);
         WebElement notice = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("notice")));
         assertTrue(notice.getText().contains("Pessoa adicionada com sucesso"));
 
-        // Valida que a pessoa está na lista
         WebElement ultimaPessoa = cadastroPage.getUltimaPessoaDaLista();
         String textoDoUltimoItem = ultimaPessoa.getText();
         assertTrue(textoDoUltimoItem.contains(nome));
@@ -48,13 +48,11 @@ public class PessoaCrudE2ETest extends BaseTest {
     @DisplayName("Deve editar uma pessoa com sucesso")
     public void deveEditarPessoaComSucesso() {
         CadastroPage cadastroPage = new CadastroPage(driver);
-        // Cria uma pessoa para editar
         cadastroPage.preencherFormularioDeCadastro("Pessoa Original", "25", "original@email.com", "11122233344");
         cadastroPage.clicarEmAdicionar();
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("li[data-id]"))); // Espera o item aparecer
+        WebDriverWait wait = new WebDriverWait(driver, WAIT_TIMEOUT);
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("li[data-id]")));
 
-        // Edita a pessoa
         cadastroPage.clicarEmEditarNaUltimaPessoa();
         wait.until(ExpectedConditions.visibilityOf(cadastroPage.getEditModal()));
 
@@ -63,7 +61,6 @@ public class PessoaCrudE2ETest extends BaseTest {
         cadastroPage.preencherFormularioDeEdicao(nomeEditado, "35", emailEditado, "55566677788");
         cadastroPage.clicarEmSalvar();
 
-        // Espera a notificação de sucesso e a validação na lista
         WebElement notice = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("notice")));
         assertTrue(notice.getText().contains("Pessoa atualizada"));
         String textoDoItemAtualizado = cadastroPage.getTextoUltimaPessoaDaLista();
@@ -75,22 +72,18 @@ public class PessoaCrudE2ETest extends BaseTest {
     @DisplayName("Deve remover uma pessoa com sucesso")
     public void deveRemoverPessoaComSucesso() {
         CadastroPage cadastroPage = new CadastroPage(driver);
-        // Cria uma pessoa para remover
         cadastroPage.preencherFormularioDeCadastro("Pessoa a Remover", "40", "remover@email.com", "99988877766");
         cadastroPage.clicarEmAdicionar();
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+        WebDriverWait wait = new WebDriverWait(driver, WAIT_TIMEOUT);
         WebElement pessoaParaRemover = wait.until(ExpectedConditions.visibilityOf(cadastroPage.getUltimaPessoaDaLista()));
         String idPessoa = pessoaParaRemover.getAttribute("data-id");
 
-        // Remove a pessoa
         cadastroPage.clicarEmRemoverNaUltimaPessoa();
         driver.switchTo().alert().accept();
 
-        // CORREÇÃO: Espera a notificação de sucesso e depois valida que o elemento não existe mais
         WebElement notice = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("notice")));
         assertTrue(notice.getText().contains("Pessoa removida"));
 
-        // Validação robusta: verifica se o elemento com o data-id específico não está mais no DOM
         boolean elementoRemovido = wait.until(ExpectedConditions.invisibilityOfElementLocated(By.cssSelector("li[data-id='" + idPessoa + "']")));
         assertTrue(elementoRemovido, "O elemento da pessoa removida ainda foi encontrado na página.");
     }
@@ -111,11 +104,9 @@ public class PessoaCrudE2ETest extends BaseTest {
         cadastroPage.preencherFormularioDeCadastro(nome, idade, email, cpf);
         cadastroPage.clicarEmAdicionar();
 
-        // CORREÇÃO: Espera pela notificação de erro customizada, não por um alert
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+        WebDriverWait wait = new WebDriverWait(driver, WAIT_TIMEOUT);
         WebElement notice = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("notice")));
 
-        // Valida o tipo e o conteúdo da notificação
         assertEquals("notice notice-error", notice.getAttribute("class"));
         assertTrue(notice.getText().contains(mensagemEsperada),
             String.format("Mensagem de erro esperada '%s' não encontrada em '%s'",

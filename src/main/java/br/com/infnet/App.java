@@ -73,6 +73,10 @@ public class App {
         PessoaController pessoaController = new PessoaController();
         AuthController authController = new AuthController();
 
+        // Endpoint de Health Check
+        app.get("/health", ctx -> ctx.status(HttpStatus.OK).result("OK"));
+
+        // Rotas da API
         app.get("/api/pessoas", pessoaController::getAll);
         app.get("/api/pessoas/{id}", pessoaController::getOne);
         app.post("/api/pessoas", pessoaController::create);
