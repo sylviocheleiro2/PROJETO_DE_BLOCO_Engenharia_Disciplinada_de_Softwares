@@ -11,13 +11,14 @@ import java.util.NoSuchElementException;
  */
 public class PessoaService implements IPessoaService {
 
-    private final PessoaRepository pessoaRepository = PessoaRepository.getInstance();
+    private final PessoaRepository pessoaRepository = new PessoaRepository();
 
     @Override
     public Pessoa criarPessoa(String nome, int idade, String email, String cpf) {
-        // A validação agora é feita no construtor de Pessoa
-        Pessoa novaPessoa = new Pessoa(0, nome, idade, email, cpf); // ID é gerenciado pelo repositório
-        return pessoaRepository.save(novaPessoa);
+        // A validação é feita no construtor de Pessoa.
+        // O ID é gerenciado pelo banco de dados, então passamos um valor temporário (0).
+        Pessoa pessoaParaSalvar = new Pessoa(0, nome, idade, email, cpf);
+        return pessoaRepository.save(pessoaParaSalvar);
     }
 
     @Override
@@ -28,11 +29,15 @@ public class PessoaService implements IPessoaService {
 
     @Override
     public Pessoa atualizarPessoa(int id, String nome, int idade, String email, String cpf) {
-        // A validação é feita no construtor de Pessoa
+        // Garante que a pessoa existe antes de tentar atualizar
+        consultarPessoa(id); // Lança NoSuchElementException se não existir
+
+        // A validação dos dados é feita no construtor de Pessoa
         Pessoa pessoaAtualizada = new Pessoa(id, nome, idade, email, cpf);
         Pessoa pessoa = pessoaRepository.update(pessoaAtualizada);
         if (pessoa == null) {
-            throw new NoSuchElementException("Pessoa não encontrada para atualização.");
+            // Esta exceção é um fallback, a verificação acima deve pegar o caso de não existência.
+            throw new RuntimeException("Falha ao atualizar a pessoa.");
         }
         return pessoa;
     }

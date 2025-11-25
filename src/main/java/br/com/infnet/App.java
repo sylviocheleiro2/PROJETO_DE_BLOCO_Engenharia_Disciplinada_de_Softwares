@@ -1,7 +1,9 @@
 package br.com.infnet;
 
+import br.com.infnet.controller.AuthController;
 import br.com.infnet.controller.PessoaController;
 import br.com.infnet.model.ErrorResponse;
+import br.com.infnet.repository.DatabaseManager;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
@@ -23,7 +25,7 @@ public class App {
             return;
         }
 
-        PessoaController pessoaController = new PessoaController();
+        DatabaseManager.initializeDatabase(); // Inicializa o banco de dados
 
         app = Javalin.create(config -> {
             config.staticFiles.add(staticFiles -> {
@@ -33,7 +35,23 @@ public class App {
             });
         });
 
-        // Handlers globais de erro
+        setupExceptionHandlers();
+        setupRoutes();
+
+        app.start(7070);
+        log.info("Servidor rodando em http://localhost:7070");
+        log.info("Acesse o login em http://localhost:7070/index.html ou a tela de cadastro em http://localhost:7070/cadastro.html");
+    }
+
+    public static void stop() {
+        if (app != null) {
+            app.stop();
+            app = null;
+            log.info("Servidor parado.");
+        }
+    }
+
+    private static void setupExceptionHandlers() {
         app.exception(IllegalArgumentException.class, (e, ctx) -> {
             log.warn("[VALIDATION] {} - {}", ctx.path(), e.getMessage());
             ctx.status(HttpStatus.BAD_REQUEST).json(ErrorResponse.of(ctx.path(), "BAD_REQUEST", e.getMessage()));
@@ -50,48 +68,17 @@ public class App {
             log.error("[INTERNAL_ERROR] {} - {}", ctx.path(), e.toString());
             ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(ErrorResponse.of(ctx.path(), "INTERNAL_ERROR", "Erro interno no servidor."));
         });
+    }
 
-        // Rotas da API
+    private static void setupRoutes() {
+        PessoaController pessoaController = new PessoaController();
+        AuthController authController = new AuthController();
+
         app.get("/api/pessoas", pessoaController::getAll);
         app.get("/api/pessoas/{id}", pessoaController::getOne);
         app.post("/api/pessoas", pessoaController::create);
         app.put("/api/pessoas/{id}", pessoaController::update);
         app.delete("/api/pessoas/{id}", pessoaController::delete);
-
-        // Endpoint de login
-        app.post("/api/login", ctx -> {
-            java.util.Map body = ctx.bodyAsClass(java.util.Map.class);
-            Object emailObj = body.get("email");
-            Object passwordObj = body.get("password");
-            String email = emailObj != null ? emailObj.toString() : null;
-            String password = passwordObj != null ? passwordObj.toString() : null;
-
-            if (email == null || email.isBlank() || password == null || password.isBlank()) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(ErrorResponse.of(ctx.path(), "BAD_REQUEST", "Email e senha são obrigatórios."));
-                return;
-            }
-
-            java.util.regex.Pattern emailPattern = java.util.regex.Pattern.compile("^[\\w._%+-]+@[\\w.-]+\\.[A-Za-z]{2,}$");
-            if (!emailPattern.matcher(email).matches()) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(ErrorResponse.of(ctx.path(), "BAD_REQUEST", "Email inválido."));
-                return;
-            }
-
-            log.info("Login bem-sucedido para {}", email);
-            ctx.header("Location", "/pessoa.html");
-            ctx.status(HttpStatus.OK).json(java.util.Map.of("message", "Login efetuado com sucesso", "redirectTo", "/pessoa.html"));
-        });
-
-        app.start(7070);
-        log.info("Servidor rodando em http://localhost:7070");
-        log.info("Acesse o login em http://localhost:7070/index.html ou a tela de cadastro em http://localhost:7070/cadastro.html");
-    }
-
-    public static void stop() {
-        if (app != null) {
-            app.stop();
-            app = null; // Garante que o app possa ser recriado
-            log.info("Servidor parado.");
-        }
+        app.post("/api/login", authController::handleLogin);
     }
 }
