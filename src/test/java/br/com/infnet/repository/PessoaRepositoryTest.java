@@ -1,37 +1,38 @@
 package br.com.infnet.repository;
 
 import br.com.infnet.model.Pessoa;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
-import java.lang.reflect.Field;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class PessoaRepositoryTest {
 
     private PessoaRepository repository;
 
+    @BeforeAll
+    void setupAll() {
+        // Garante que a tabela exista antes de todos os testes
+        DatabaseManager.initializeDatabase();
+        repository = new PessoaRepository();
+    }
+
     @BeforeEach
-    @SuppressWarnings("unchecked")
-    void setUp() throws Exception {
-        // Usa Reflection para resetar o estado do Singleton antes de cada teste
-        Field instanceField = PessoaRepository.class.getDeclaredField("INSTANCE");
-        instanceField.setAccessible(true);
-        repository = (PessoaRepository) instanceField.get(null);
-
-        Field mapField = PessoaRepository.class.getDeclaredField("pessoas");
-        mapField.setAccessible(true);
-        Map<Integer, Pessoa> pessoasMap = (Map<Integer, Pessoa>) mapField.get(repository);
-        pessoasMap.clear();
-
-        Field idField = PessoaRepository.class.getDeclaredField("proximoId");
-        idField.setAccessible(true);
-        idField.set(repository, 1);
+    void setUp() {
+        // Limpa a tabela antes de cada teste para garantir o isolamento
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DELETE FROM pessoas");
+            stmt.execute("DELETE FROM sqlite_sequence WHERE name='pessoas'");
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
@@ -41,15 +42,15 @@ public class PessoaRepositoryTest {
         Pessoa pessoaSalva = repository.save(pessoa);
 
         assertNotNull(pessoaSalva);
-        assertEquals(1, pessoaSalva.getId());
+        assertTrue(pessoaSalva.getId() > 0); // O ID agora é gerado pelo banco
         assertEquals("Nova Pessoa", pessoaSalva.getNome());
     }
 
     @Test
     @DisplayName("Deve encontrar uma pessoa pelo ID")
     void deveEncontrarPessoaPorId() {
-        repository.save(new Pessoa(0, "Pessoa Encontrada", 30, "encontrada@email.com", "22233344455"));
-        Optional<Pessoa> pessoaOptional = repository.findById(1);
+        Pessoa pessoaSalva = repository.save(new Pessoa(0, "Pessoa Encontrada", 30, "encontrada@email.com", "22233344455"));
+        Optional<Pessoa> pessoaOptional = repository.findById(pessoaSalva.getId());
 
         assertTrue(pessoaOptional.isPresent());
         assertEquals("Pessoa Encontrada", pessoaOptional.get().getNome());
@@ -84,7 +85,7 @@ public class PessoaRepositoryTest {
         assertEquals("Pessoa Atualizada", pessoaAtualizada.getNome());
         assertEquals(41, pessoaAtualizada.getIdade());
 
-        Optional<Pessoa> pessoaDoRepo = repository.findById(1);
+        Optional<Pessoa> pessoaDoRepo = repository.findById(pessoaSalva.getId());
         assertTrue(pessoaDoRepo.isPresent());
         assertEquals("Pessoa Atualizada", pessoaDoRepo.get().getNome());
     }
@@ -92,10 +93,22 @@ public class PessoaRepositoryTest {
     @Test
     @DisplayName("Deve deletar uma pessoa pelo ID")
     void deveDeletarPessoa() {
-        repository.save(new Pessoa(0, "Pessoa a Deletar", 50, "deletar@email.com", "44455566677"));
-        boolean deletado = repository.deleteById(1);
+        Pessoa pessoaSalva = repository.save(new Pessoa(0, "Pessoa a Deletar", 50, "deletar@email.com", "44455566677"));
+        boolean deletado = repository.deleteById(pessoaSalva.getId());
 
         assertTrue(deletado);
-        assertTrue(repository.findById(1).isEmpty());
+        assertTrue(repository.findById(pessoaSalva.getId()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção ao salvar CPF duplicado")
+    void deveLancarExcecaoCpfDuplicado() {
+        repository.save(new Pessoa(0, "Pessoa 1", 20, "p1@email.com", "12345678900"));
+        
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            repository.save(new Pessoa(0, "Pessoa 2", 30, "p2@email.com", "12345678900"));
+        });
+
+        assertEquals("CPF ou e-mail já cadastrado.", exception.getMessage());
     }
 }

@@ -12,7 +12,6 @@ public class CadastroPage {
     private final WebDriver driver;
     private static final long SLEEP_TIME = 2000;
 
-    // Atualizando os locators com os seletores corretos
     private final By nomeInput = By.id("nome");
     private final By idadeInput = By.id("idade");
     private final By emailInput = By.id("email");
@@ -67,14 +66,12 @@ public class CadastroPage {
     public void clicarEmEditarNaUltimaPessoa() {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         WebElement ultimaPessoa = getUltimaPessoaDaLista();
-        // Usando XPath fornecido
         WebElement editarBtn = driver.findElement(By.xpath("//*[@id=\"person-list\"]/li[1]/div[2]/button[1]"));
         wait.until(ExpectedConditions.elementToBeClickable(editarBtn)).click();
     }
 
     public void clicarEmRemoverNaUltimaPessoa() {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-        // Usando XPath fornecido para o botão remover
         WebElement removerBtn = driver.findElement(By.xpath("//*[@id=\"person-list\"]/li[1]/div[2]/button[2]"));
         wait.until(ExpectedConditions.elementToBeClickable(removerBtn)).click();
         try {

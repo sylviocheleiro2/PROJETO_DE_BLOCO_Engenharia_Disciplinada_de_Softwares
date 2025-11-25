@@ -2,74 +2,76 @@ package br.com.infnet.tests;
 
 import br.com.infnet.App;
 import br.com.infnet.pages.LoginPage;
+import br.com.infnet.repository.DatabaseManager;
 import io.github.bonigarcia.wdm.WebDriverManager;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
+import io.javalin.Javalin;
+import org.junit.jupiter.api.*;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseTest {
 
     protected WebDriver driver;
+    private static Javalin app;
+    private static int appPort;
 
     @BeforeAll
-    public static void setupClass() {
-        // Inicia a aplicação Javalin antes de todos os testes
-        App.start();
-        // Configura o WebDriverManager para o Chrome.
+    public void setupClass() {
         WebDriverManager.chromedriver().setup();
+        app = App.create();
+        app.start(0); // Inicia o servidor em uma porta aleatória
+        appPort = app.port(); // Captura a porta
     }
 
     @AfterAll
-    public static void teardownClass() {
-        // Para a aplicação Javalin após todos os testes
-        App.stop();
+    public void teardownClass() {
+        if (app != null) {
+            app.stop(); // Para o servidor no final de todos os testes
+        }
     }
 
     @BeforeEach
     public void setup() {
+        // Limpa a tabela antes de cada teste
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DELETE FROM pessoas");
+            stmt.execute("DELETE FROM sqlite_sequence WHERE name='pessoas'");
+        } catch (SQLException e) {
+            throw new RuntimeException("Falha ao limpar o banco de dados.", e);
+        }
+
         ChromeOptions options = new ChromeOptions();
-        // options.addArguments("--headless"); // Descomente para rodar sem interface gráfica (bom para CI/CD)
+        options.addArguments("--headless");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1200");
         options.addArguments("--ignore-certificate-errors");
 
-        // Inicializa o driver do Chrome com as opções configuradas
         driver = new ChromeDriver(options);
-
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
 
-        try {
-            LoginPage loginPage = new LoginPage(driver);
-            loginPage.realizarLogin("admin@example.com", "admin123");
+        // Realiza o login
+        LoginPage loginPage = new LoginPage(driver, appPort);
+        loginPage.realizarLogin("admin@example.com", "admin123");
 
-            // Verifica se o login foi bem-sucedido
-            if (!loginPage.isLoginSucesso()) {
-                String currentUrl = driver.getCurrentUrl();
-                throw new RuntimeException("Falha ao realizar login antes do teste. URL atual: " + currentUrl);
-            }
-        } catch (Exception e) {
-            if (driver != null) {
-                String pageSource = driver.getPageSource();
-                String currentUrl = driver.getCurrentUrl();
-                System.err.println("Erro durante o login:");
-                System.err.println("URL atual: " + currentUrl);
-                System.err.println("HTML da página:");
-                System.err.println(pageSource);
-                driver.quit();
-            }
-            throw new RuntimeException("Falha ao realizar login: " + e.getMessage(), e);
+        // Validação crucial
+        if (!loginPage.isLoginSucesso()) {
+            // Se o login falhar, o teste não pode continuar.
+            // Limpa os recursos e lança uma exceção clara.
+            teardown(); // Chama o método de limpeza
+            Assertions.fail("Setup falhou: Login não foi bem-sucedido. URL final: " + driver.getCurrentUrl());
         }
     }
 
     @AfterEach
     public void teardown() {
-        // Fecha o navegador e encerra a sessão do WebDriver após cada teste.
         if (driver != null) {
             driver.quit();
         }

@@ -10,21 +10,24 @@ import java.time.Duration;
 
 public class LoginPage {
     private final WebDriver driver;
-    private static final long SLEEP_TIME = 2000;
+    private final int port;
+    private static final long SLEEP_TIME = 1000;
 
     private final By emailInput = By.id("login-email");
     private final By senhaInput = By.id("login-password");
     private final By logarButao = By.xpath("//*[@id=\"login-form\"]/button");
 
-    public LoginPage(WebDriver driver) {
+    public LoginPage(WebDriver driver, int port) {
         this.driver = driver;
+        this.port = port;
     }
 
     public void acessarPagina() {
-        driver.get("http://localhost:7070/index.html");
+        driver.get("http://localhost:" + port + "/index.html");
         try {
-            Thread.sleep(1000);
+            Thread.sleep(SLEEP_TIME);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             e.printStackTrace();
         }
     }
@@ -59,9 +62,11 @@ public class LoginPage {
     public boolean isLoginSucesso() {
         try {
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-            return wait.until(ExpectedConditions.urlContains("/cadastro.html"));
+            // CORREÇÃO: A URL de sucesso após o login é 'cadastro.html', conforme o log.
+            return wait.until(ExpectedConditions.urlContains("cadastro.html"));
         } catch (Exception e) {
-            System.out.println("Erro ao verificar login: " + e.getMessage());
+            System.err.println("Erro ao verificar sucesso do login: " + e.getMessage());
+            System.err.println("URL Atual: " + driver.getCurrentUrl());
             return false;
         }
     }

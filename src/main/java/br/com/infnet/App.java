@@ -12,22 +12,13 @@ import org.slf4j.LoggerFactory;
 
 public class App {
 
-    private static Javalin app;
     private static final Logger log = LoggerFactory.getLogger(App.class);
+    private static Javalin app;
 
-    public static void main(String[] args) {
-        start();
-    }
+    public static Javalin create() {
+        DatabaseManager.initializeDatabase();
 
-    public static void start() {
-        if (app != null && app.port() > 0) {
-            log.info("Servidor já está rodando.");
-            return;
-        }
-
-        DatabaseManager.initializeDatabase(); // Inicializa o banco de dados
-
-        app = Javalin.create(config -> {
+        Javalin app = Javalin.create(config -> {
             config.staticFiles.add(staticFiles -> {
                 staticFiles.hostedPath = "/";
                 staticFiles.directory = "/static";
@@ -35,12 +26,24 @@ public class App {
             });
         });
 
-        setupExceptionHandlers();
-        setupRoutes();
+        setupExceptionHandlers(app);
+        setupRoutes(app);
 
+        return app;
+    }
+
+    public static void main(String[] args) {
+        app = create();
         app.start(7070);
         log.info("Servidor rodando em http://localhost:7070");
-        log.info("Acesse o login em http://localhost:7070/index.html ou a tela de cadastro em http://localhost:7070/cadastro.html");
+        log.info("Acesse a aplicação em http://localhost:7070/index.html");
+    }
+
+    public static void start() {
+        if (app == null) {
+            app = create();
+        }
+        app.start(7070);
     }
 
     public static void stop() {
@@ -51,14 +54,10 @@ public class App {
         }
     }
 
-    private static void setupExceptionHandlers() {
+    private static void setupExceptionHandlers(Javalin app) {
         app.exception(IllegalArgumentException.class, (e, ctx) -> {
             log.warn("[VALIDATION] {} - {}", ctx.path(), e.getMessage());
             ctx.status(HttpStatus.BAD_REQUEST).json(ErrorResponse.of(ctx.path(), "BAD_REQUEST", e.getMessage()));
-        });
-        app.exception(NumberFormatException.class, (e, ctx) -> {
-            log.warn("[BAD_REQUEST] {} - {}", ctx.path(), e.getMessage());
-            ctx.status(HttpStatus.BAD_REQUEST).json(ErrorResponse.of(ctx.path(), "BAD_REQUEST", "Requisição inválida."));
         });
         app.exception(java.util.NoSuchElementException.class, (e, ctx) -> {
             log.warn("[NOT_FOUND] {} - {}", ctx.path(), e.getMessage());
@@ -70,7 +69,7 @@ public class App {
         });
     }
 
-    private static void setupRoutes() {
+    private static void setupRoutes(Javalin app) {
         PessoaController pessoaController = new PessoaController();
         AuthController authController = new AuthController();
 
