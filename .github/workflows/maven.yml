@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# Adiciona as permissões necessárias para o CodeQL
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
 jobs:
   build_and_analyze:
     name: Build, Test & Analyze
@@ -27,7 +33,6 @@ jobs:
           languages: 'java'
 
       - name: Build and run unit tests
-        # --no-transfer-progress remove os logs de download das dependências
         run: mvn -B --no-transfer-progress verify --file pom.xml
 
       - name: Perform CodeQL Analysis
@@ -67,12 +72,10 @@ jobs:
           echo $! > app.pid
 
       - name: Wait for application to be healthy
-        # Loop silencioso que aguarda a aplicação responder no endpoint /health
         run: |
           timeout 60s bash -c 'until curl -s --fail http://localhost:7070/health > /dev/null; do sleep 2; done'
 
       - name: Run Selenium tests
-        # --no-transfer-progress também é usado aqui
         run: mvn -B --no-transfer-progress test-compile failsafe:integration-test failsafe:verify --file pom.xml
 
       - name: Stop application
