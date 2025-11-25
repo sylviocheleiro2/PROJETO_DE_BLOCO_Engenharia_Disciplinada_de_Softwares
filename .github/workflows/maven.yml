@@ -39,8 +39,11 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
-      - name: Upload build artifact
+      # Separando em dois passos
+      - name: Announce Artifact Upload
         run: echo "::notice title=Artifact Upload::Fazendo upload do artefato JAR..."
+        
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-jar
